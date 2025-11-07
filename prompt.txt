@@ -1,0 +1,422 @@
+Project Prompt — Build go-numpy: A Complete NumPy-equivalent in Golang
+
+Short description (one sentence):
+Build go-numpy — a production-ready, idiomatic Go implementation of the NumPy ecosystem: a high-performance N-dimensional array/tensor library and companion packages that replicate NumPy’s major and minor features (API parity where practical), GPU acceleration, BLAS/LAPACK interoperability, serialization, tooling, docs, tests, and a migration path from Python NumPy.
+
+Audience: Senior Go engineers, systems programmers, numerical computing engineers, contributors, and AI assistants used to scaffold code or docs.
+
+High-level goals
+
+Provide idiomatic Go APIs that are functionally equivalent to NumPy (indexing, slicing, broadcasting, ufuncs, linear algebra, FFT, random, statistics, IO, datatypes, memory model).
+
+Deliver high throughput and low latency comparable to NumPy using optimized CPU (BLAS/LAPACK/vec) and optional GPU (CUDA/ROC/Metal/OpenCL) backends.
+
+Produce single static binaries, cross-compile-friendly modules, and easy-to-use packages for server, CLI, WebAssembly, and embedded (TinyGo) targets where feasible.
+
+Offer excellent documentation, examples, migration guides, and comprehensive unit + performance tests (benchmarks vs NumPy/Python).
+
+Modular architecture so components (tensor, linalg, random, io, fft, stats) can be developed independently and reused.
+
+
+
+---
+
+Requirements & Acceptance Criteria
+
+Functional parity (Major features)
+
+Implement the full set of common NumPy features (aim for parity; mark exceptions/limitations clearly):
+
+1. Core: NDArray / Tensor
+
+N-dimensional arrays with arbitrary rank and shape.
+
+Dtypes: float16/32/64, int8/16/32/64, uint8/16/32/64, bool, complex64/128, string/object (best-effort).
+
+Memory layout: C-contiguous and Fortran-contiguous, strides, itemsize.
+
+Views vs copies (no hidden copies). .T, .reshape(), .ravel(), .flatten(), .copy() semantics.
+
+Broadcasting rules (same as NumPy).
+
+Indexing & slicing: single index, slices, boolean masking, fancy integer indexing, ellipsis, newaxis.
+
+Negative indexing and advanced indexing semantics.
+
+.shape, .ndim, .size, .dtype, .strides.
+
+Memory-mapped arrays (memmap), shared memory support for interprocess.
+
+
+
+2. Ufunc-style elementwise operations
+
+Arithmetic ops: +, -, *, /, **, //, %, bitwise ops.
+
+Comparison ops and boolean reduction.
+
+Vectorized universal functions (ufunc) API; ability to register custom ufuncs in Go and via cgo.
+
+
+
+3. Reductions & aggregations
+
+sum, mean, std, var, min, max, argmin, argmax, all, any, prod with axis, keepdims, dtype options.
+
+
+
+4. Linear algebra
+
+dot, matmul, tensordot, inner, outer.
+
+Matrix decompositions: svd, qr, eig, eigh.
+
+inv, det, pinv.
+
+BLAS/LAPACK bindings and fallback pure-Go implementations when BLAS not available.
+
+Support linking/using OpenBLAS, MKL, BLIS via cgo.
+
+
+
+5. Random
+
+RNG engine(s): PCG/MT19937 or better; reproducible seeds.
+
+Distributions: uniform, normal, binomial, poisson, gamma, beta, exponential, multinomial.
+
+Random sampling utilities, permutation, shuffle, choice.
+
+
+
+6. FFT
+
+1D/2D/ND FFT and inverse FFT, windowing helpers, real/complex variants.
+
+Bindings to FFTW or in-Go FFT implementations.
+
+
+
+7. Dataframe-like interoperability
+
+Basic DataFrame utilities (or a companion go-dataframe) supporting import/export to/from go-numpy arrays for columns, groupby basics (optional for v1).
+
+
+
+8. IO
+
+Read/write CSV, TSV, JSON, HDF5 (via cgo HDF5), NPZ/NPY formats, Parquet integration (optional).
+
+Model/data streaming support and chunked IO.
+
+
+
+9. Dtype casting & conversion
+
+Safe casting, upcasting rules, astype support, NaN and Inf semantics.
+
+
+
+10. Masked arrays and missing data
+
+MaskedArray concept or NaN-aware functions for floats; support for nullable types.
+
+
+
+11. Structured arrays / record arrays
+
+Named fields and compound dtypes (like NumPy structured arrays).
+
+
+
+12. Broadcastable linear algebra (e.g., batched matrix multiplication).
+
+
+13. Performance & parallelism
+
+Multi-threaded execution for large ops using goroutines, worker pools, and vectorized kernels.
+
+Configurable concurrency limits.
+
+Memory-efficient algorithms, in-place operations where safe.
+
+
+
+14. Interoperability
+
+Export/import ONNX, ONNX Runtime support.
+
+Interop with Python: load .npy/.npz and produce identical binary layout.
+
+cgo hooks for calling existing C libraries.
+
+gRPC/REST model serving using go-serving.
+
+
+
+15. Extras
+
+einsum, where, clip, unique, argsort, sort, searchsorted, histogram.
+
+polynomial, linalg, random, fft, special (SciPy-like special funcs) basic support.
+
+
+
+
+Non-functional requirements
+
+Performance targets: For core matrix multiply and elementwise ops, performance should be within 1.5× of NumPy with optimized BLAS, and within 2–3× for pure-Go kernels (document microbenchmarks).
+
+Memory: No unnecessary copies; in-place ops when requested.
+
+Portability: Buildable on Linux, macOS, Windows, and support for WebAssembly and TinyGo as far as feasible.
+
+API ergonomics: Idiomatic Go API that is expressive but similar enough to NumPy to make migration easy; provide a migration guide.
+
+Documentation: Full docs, examples, and a NumPy→go-numpy mapping table.
+
+Testing: Unit tests with ≥95% coverage for core modules; regression tests validating parity with NumPy on representative datasets.
+
+Licensing: MIT or BSD-compatible license (decide project-wide).
+
+CI/CD: Automated tests, benchmarks, cross-platform builds, release artifacts, and module versioning (go mod).
+
+Security: No unsafe defaults; minimize use of unsafe package, document and encapsulate unsafe parts.
+
+
+
+---
+
+Architecture & Modules (suggested repo layout)
+
+github.com/<org>/go-numpy
+ ├─ tensor/            # core NDArray, dtype, indexing, broadcasting
+ ├─ ufunc/             # elementwise ops, registration, broadcasting kernels
+ ├─ linalg/            # BLAS/LAPACK wrappers, matmul, decompositions
+ ├─ fft/               # DFT implementations & wrappers (FFTW)
+ ├─ random/            # RNG engines & distributions
+ ├─ io/                # npy/npz/hdf5/csv/json/parquet
+ ├─ stats/             # statistical functions
+ ├─ special/           # special mathematical functions
+ ├─ utils/             # utils: memory, threading, pooling
+ ├─ cuda/              # optional: CUDA/cuBLAS/cuDNN bindings (cgo)
+ ├─ opencl/            # optional: OpenCL backend
+ ├─ wasm/              # wasm-related shims for browser usage
+ ├─ examples/
+ ├─ bench/
+ ├─ docs/
+ └─ tools/
+
+
+---
+
+API Design — Examples & Guidelines
+
+Make API ergonomics similar to NumPy but Go-idiomatic.
+
+Construction
+
+a := tensor.FromSlice([]float64{0,1,2,3,4,5}, 2, 3) // shape 2x3
+b := tensor.Zeros([]int{3,3}, dtype.Float64)
+c := tensor.Range(0,8).Reshape(2,4)
+
+Elementwise ops & ufunc
+
+c := a.Add(b)         // broadcasting
+d := tensor.Exp(a)    // ufunc
+e := a.MulScalar(2.5) // scalar ops
+
+Indexing & slicing
+
+row := a.At(0)             // returns 1-D view
+sub := a.Slice(0, 2, 0, 3) // row range, col range
+mask := a.Gt(5)            // boolean mask
+vals := a.Where(mask)      // fancy indexing
+
+Linear algebra
+
+c := linalg.MatMul(a, b)
+u, s, vt := linalg.SVD(m)
+inv := linalg.Inv(m)
+
+Random
+
+rng := random.New(42)
+arr := rng.Normal(0,1, []int{1000,1000})
+
+IO
+
+tensor.SaveNpy("x.npy", a)
+b := tensor.LoadNpy("x.npy")
+
+In-place vs copy semantics
+
+a.Add(b) returns new array
+
+a.AddInplace(b) modifies a
+
+Document copy-on-write or explicit .Copy() behavior.
+
+
+
+---
+
+Implementation plan & milestones
+
+Phase 0 — Project foundation (2–4 weeks)
+
+Repo, module skeleton, contribution guide, coding standards, CI, issue templates.
+
+Minimal NDArray struct, dtype system, and basic creation funcs.
+
+Implement small operations: Add, Sub, Mul, Div, shape/reshape, basic indexing, tests.
+
+
+Phase 1 — Core features (8–12 weeks)
+
+Broadcasting, advanced indexing, full slicing semantics.
+
+Basic ufunc framework & a standard set (exp, log, sin, cos).
+
+Efficient memory layout & view semantics.
+
+
+Phase 2 — Linear algebra & BLAS (6–10 weeks)
+
+MatMul, Dot, Dot for batched matrices.
+
+BLAS/LAPACK bindings via cgo (OpenBLAS default) and fallback pure-Go implementations.
+
+Implement inv, det, svd, eig.
+
+
+Phase 3 — Random, FFT, I/O, and dtype finishing (6–10 weeks)
+
+RNG engines, distributions, NPY/NPZ support, HDF5 support via cgo, FFT via FFTW or in-Go.
+
+Memmap, structured arrays, masked arrays.
+
+
+Phase 4 — Performance tuning & GPU (ongoing)
+
+Profiling, vectorized kernels, multi-threading, goroutine pools, memory pooling.
+
+Optional CUDA/cuBLAS backend (cgo bindings), ROCm/OpenCL backends.
+
+
+Phase 5 — Ecosystem & Packaging
+
+go-dataframe, SciPy-like special and stats.
+
+Examples, Jupyter/Go kernel support, migration guide, blog posts.
+
+Release v1.0.0 with benchmarks, compatibility notes.
+
+
+
+---
+
+Testing, Benchmarks & Validation
+
+Unit tests for every function, property-based tests for algorithms, CI that runs tests on Linux/macOS/Windows.
+
+Integration tests comparing results vs NumPy for a curated set of numeric cases (random seeds).
+
+Benchmark suites: MATMUL, elementwise ops, broadcasting overhead, memory usage. Compare against NumPy+OpenBLAS; record environment and versions.
+
+Performance regression alerts on CI.
+
+
+
+---
+
+Developer guidelines & coding standards
+
+Use go modules, semantic versioning v0.x → v1.0.
+
+Keep public API stable across minor versions; reserve breaking changes for major versions.
+
+Avoid excessive use of unsafe; if used, isolate and document thoroughly.
+
+Document concurrency model and how to tune GOMAXPROCS and internal thread pools.
+
+Use clear error types, return (T, error) idiomatically.
+
+Provide good logging and observability hooks for long-running ops.
+
+
+
+---
+
+Documentation & Community
+
+Docs site with tutorials: quickstart, NumPy migration guide, performance tuning, cgo backend building.
+
+Examples: ML pipeline (train simple model), image processing pipeline, server-side inference with go-serving.
+
+Contribution guide, code of conduct, issue templates, roadmap.
+
+Release notes & changelog.
+
+
+
+---
+
+Deliverables (initial)
+
+1. tensor core with NDArray API, indexing, broadcasting, ufuncs (alpha).
+
+
+2. linalg with matmul, dot, and BLAS linking (beta).
+
+
+3. random and io basic (.npy read/write).
+
+
+4. Docs: quickstart, migration guide, API reference.
+
+
+5. Test suite and benchmark harness.
+
+
+6. Example apps: CLI demo, HTTP inference server, small ML training script.
+
+
+
+
+---
+
+Risk, Limits, and Tradeoffs to document
+
+GPU support requires cgo and vendor-specific libs; optional but high effort. Document build complexity.
+
+Complete API parity may be impractical; define a set of "must-have" functions to match NumPy exactly and a "nice-to-have" backlog.
+
+Complex features (structured arrays, full SciPy ecosystem, advanced special functions) may be staged after core is stable.
+
+TinyGo/WebAssembly: some features (cgo, threading, large allocations) are restricted — document supported subset.
+
+
+
+---
+
+Example prompt for an AI/developer to start coding a module
+
+> Task: Implement tensor.NDArray (core) in Go.
+Requirements:
+
+Data buffer as contiguous []byte or typed slice with dtype metadata.
+
+Support creation (Zeros, Ones, FromSlice, Arange), shape, strides, .Reshape(), .Transpose(), .Copy() and .Slice() returning views.
+
+Indexing: At(indices... int), Set(indices... int, value).
+
+Broadcasting logic for binary ops and a simple Add function that respects broadcasting and returns a new NDArray.
+
+Unit tests covering shapes, broadcasting rules, negative indexing, view vs copy semantics.
+
+Benchmark for Add (large arrays) and compare baseline to naive for-loop.
+
+Keep API idiomatic Go, return errors where necessary.
+
+Avoid unsafe for now; implement using typed slices (e.g., []float64) for the first dtype, with extension plan for generic dtype support.
